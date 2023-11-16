@@ -1,5 +1,5 @@
-use std::ops::{IndexMut, Index};
-use crate::{BitPiece, Color, Square, movegen::{Raw, RawMove}, Piece};
+use std::{ops::{IndexMut, Index}, fmt};
+use crate::{BitPiece, Color, Square, movegen::{Raw, RawMove, Legal}, Piece};
 
 type BitBoard = [BitPiece; 64];
 
@@ -121,5 +121,27 @@ impl Board {
             }
         }
         false
+    }
+
+    pub fn legal_moves(&self) -> Vec<RawMove> {
+        Legal::gen_all_legal_moves(self)
+    }
+}
+
+impl fmt::Display for Board {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut board = String::new();
+        for i in (0..8).rev() {
+            for j in 0..8 {
+                let p = self[Square::try_from(i * 8 + j).unwrap()];
+                if p.is_blank() {
+                    board.push_str(".");
+                } else {
+                    board.push_str(&format!("{}", p));
+                }
+            }
+            board.push('\n');
+        }
+        write!(f, "{}", board)
     }
 }

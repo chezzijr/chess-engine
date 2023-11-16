@@ -1,3 +1,5 @@
+use std::fmt;
+
 use super::{Walk, DD, HD, VD};
 use crate::{Board, Square, CastleMove, BitPiece};
 
@@ -30,6 +32,19 @@ pub enum RawMove {
     // castle move contains 2 moves, the king and the rook
     Double(RawMoveInfo, RawMoveInfo)
 }
+
+impl fmt::Display for RawMove {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RawMove::Single(info) => {
+                write!(f, "{} from {} to {}", info.piece, info.from, info.to)
+            },
+            RawMove::Double(info1, info2) => {
+                write!(f, "{} from {} to {}", info1.piece, info1.from, info1.to)
+            }
+        }
+    }
+}
 // How to generate legal moves:
 // 1. Generate all possible raw moves
 // 2. Filter out illegal moves (e.g. moves that leave the king in check)
@@ -41,11 +56,11 @@ impl Raw {
         let mut moves = vec![];
         let gen_fns = [
             Self::gen_pawn_raw_moves,
-            Self::gen_rook_raw_moves,
+            Self::gen_knight_raw_moves,
             Self::gen_bishop_raw_moves,
+            Self::gen_rook_raw_moves,
             Self::gen_queen_raw_moves,
             Self::gen_king_raw_moves,
-            Self::gen_knight_raw_moves,
         ];
         for i in 0..64 {
             let square = Square::try_from(i).unwrap();
@@ -64,12 +79,12 @@ impl Raw {
             return moves;
         }
         // vertical, noncapturing moves
-        // 1 square forward
         let dir = if piece.is_white() { VD::Up } else { VD::Down };
-        let n_squares = Walk::vertical(board, square, dir, 1);
+        let max_offset = if piece.has_moved() { 1 } else { 2 };
+        let n_squares = Walk::vertical(board, square, dir, max_offset);
         moves.extend(n_squares.iter().filter_map(|&sqr| {
-            let piece = board[sqr];
-            if piece.is_blank() {
+            let p = board[sqr];
+            if p.is_blank() {
                 Some(RawMove::Single(RawMoveInfo {
                     piece,
                     from: square,
@@ -82,43 +97,16 @@ impl Raw {
                     },
                     castle: None,
                     en_passant: false,
-                    en_passant_square: None,
+                    en_passant_square: if piece.is_white() {
+                        square.up(1)
+                    } else {
+                        square.down(1)
+                    },
                 }))
             } else {
                 None
             }
         }));
-
-        // 2 squares forward
-        if !piece.has_moved() {
-            let dir = if piece.is_white() { VD::Up } else { VD::Down };
-            let n_squares = Walk::vertical(board, square, dir, 2);
-            moves.extend(n_squares.iter().filter_map(|&sqr| {
-                let piece = board[sqr];
-                if piece.is_blank() {
-                    Some(RawMove::Single(RawMoveInfo {
-                        piece,
-                        from: square,
-                        to: sqr,
-                        capture: None,
-                        promotion: if piece.is_white() {
-                            sqr.rank() == 8
-                        } else {
-                            sqr.rank() == 1
-                        },
-                        castle: None,
-                        en_passant: false,
-                        en_passant_square: if piece.is_white() {
-                            square.up(1)
-                        } else {
-                            square.down(1)
-                        },
-                    }))
-                } else {
-                    None
-                }
-            }));
-        }
 
         // capture moves and en passant
         let dirs = if piece.is_white() {

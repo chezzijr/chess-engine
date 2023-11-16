@@ -111,7 +111,7 @@ impl fmt::Display for BitPiece {
         let color = self.get_color();
         let mut c = piece.to_string();
         if color == Color::White {
-            c = c.to_ascii_lowercase();
+            c = c.to_ascii_uppercase();
         }
         write!(f, "{}", c)
     }
