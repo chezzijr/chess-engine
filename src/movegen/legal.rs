@@ -1,15 +1,16 @@
-use crate::{Board, RawPieceMove};
+use crate::Board;
 
-use super::Raw;
+use super::{Raw, RawMove};
 // Legal moves = raw moves + move does not result in check or checkmate
 pub struct Legal;
 
 impl Legal {
-    pub fn gen_all_legal_moves(board: &Board) -> Vec<RawPieceMove> {
+    pub fn gen_all_legal_moves(board: &Board) -> Vec<RawMove> {
         let raw_moves = Raw::gen_all_raw_moves(board);
         Self::filter(board, &raw_moves)
     }
-    pub fn filter(board: &Board, raw_moves: &Vec<RawPieceMove>) -> Vec<RawPieceMove> {
+
+    pub fn filter(board: &Board, raw_moves: &Vec<RawMove>) -> Vec<RawMove> {
         raw_moves
             .iter()
             .filter_map(|&mv| {

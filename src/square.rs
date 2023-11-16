@@ -14,7 +14,7 @@ impl Square {
         (b'a' + self.0 % 8) as char
     }
 
-    // helper functions
+    // helper functions for moving from square
     pub fn up(&self, offset: u8) -> Option<Square> {
         let new_square = self.0 + 8 * offset;
         if new_square > 63 {

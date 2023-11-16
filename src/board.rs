@@ -1,5 +1,5 @@
 use std::ops::{IndexMut, Index};
-use crate::{BitPiece, Color, Square, RawPieceMove, movegen::Raw};
+use crate::{BitPiece, Color, Square, movegen::{Raw, RawMove}};
 
 type BitBoard = [BitPiece; 64];
 
@@ -44,10 +44,28 @@ impl Default for Board {
 }
 
 impl Board {
-    pub fn force_execute_raw_move(&mut self, mv: RawPieceMove) {
+    pub fn force_execute_raw_move(&mut self, mv: RawMove) {
+        match mv {
+            RawMove::Single(info) => {
+                self[info.from] = BitPiece::new_blank();
+                self[info.to] = info.piece;
+                if let Some(capture) = info.capture {
+                    self[capture.square] = BitPiece::new_blank();
+                }
+                if let Some(en_passant_square) = info.en_passant_square {
+                    self.en_passant = Some(en_passant_square);
+                }
+            },
+            RawMove::Double(info1, info2) => {
+                self[info1.from] = BitPiece::new_blank();
+                self[info1.to] = info1.piece;
+                self[info2.from] = BitPiece::new_blank();
+                self[info2.to] = info2.piece;
+            }
+        }
     }
 
-    pub fn is_being_checked(&self, color: Color, raw_moves: &Vec<RawPieceMove>) -> bool {
+    pub fn is_being_checked(&self, color: Color, raw_moves: &Vec<RawMove>) -> bool {
         // current turn meaning that opponent is not checked or checkmated
         // or previous status of the board is not check or checkmated
         // in other way, the fact that the board can advance to current turn
@@ -56,9 +74,24 @@ impl Board {
         // if current turn is being checked
         // if we chose legal moves, this function calls Legal::gen_legal_moves
         // Legal::gen_legal_moves call is_being_checked => indefinite recursion
-        let moves = raw_moves.iter().filter(|&mov| mov.piece.get_color() != color);
-        for mov in moves {
-            let p = self[mov.to];
+
+        // we check if destination of a move can result in current 
+        // color king square => capture king
+        // being said, castle move cannot result in king capture
+        let dest = raw_moves.iter().filter_map(|&mov| {
+            match mov {
+                RawMove::Single(info) => {
+                    if info.piece.get_color() != color {
+                        Some(info.to)
+                    } else {
+                        None
+                    }
+                },
+                _ => None
+            }
+        });
+        for mov in dest {
+            let p = self[mov];
             if !p.is_blank() && p.is_king() && p.get_color() == color {
                 return true;
             }
