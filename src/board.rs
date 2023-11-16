@@ -1,5 +1,5 @@
 use std::ops::{IndexMut, Index};
-use crate::{BitPiece, Color, Square, movegen::{Raw, RawMove}};
+use crate::{BitPiece, Color, Square, movegen::{Raw, RawMove}, Piece};
 
 type BitBoard = [BitPiece; 64];
 
@@ -39,7 +39,31 @@ impl IndexMut<Square> for Board {
 
 impl Default for Board {
     fn default() -> Self {
-        todo!()
+        let mut board = [BitPiece::new_blank(); 64];
+        for i in 0..8 {
+            board[8 + i] = BitPiece::new(Piece::Pawn, Color::White, false);
+            board[48 + i] = BitPiece::new(Piece::Pawn, Color::Black, false);
+        }
+        for i in 0..2 {
+            let color = if i == 0 { Color::White } else { Color::Black };
+            let row = if i == 0 { 0 } else { 7 };
+            board[0 + row * 8] = BitPiece::new(Piece::Rook, color, false);
+            board[7 + row * 8] = BitPiece::new(Piece::Rook, color, false);
+            board[1 + row * 8] = BitPiece::new(Piece::Knight, color, false);
+            board[6 + row * 8] = BitPiece::new(Piece::Knight, color, false);
+            board[2 + row * 8] = BitPiece::new(Piece::Bishop, color, false);
+            board[5 + row * 8] = BitPiece::new(Piece::Bishop, color, false);
+            board[3 + row * 8] = BitPiece::new(Piece::Queen, color, false);
+            board[4 + row * 8] = BitPiece::new(Piece::King, color, false);
+        }
+        Self {
+            board,
+            turn: Color::White,
+            status: BoardStatus::Ongoing,
+            en_passant: None,
+            halfmove_clock: 0,
+            fullmove_number: 0,
+        }
     }
 }
 
