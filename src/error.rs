@@ -32,4 +32,6 @@ pub enum SquareError {
 pub enum BoardError {
     #[error("Illegal move: {0}")]
     IllegalMove(String),
+    #[error("Invalid FEN Notation: {0}")]
+    InvalidFEN(String),
 }

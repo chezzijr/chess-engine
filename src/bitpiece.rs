@@ -101,7 +101,12 @@ impl TryFrom<char> for BitPiece {
 
     fn try_from(value: char) -> Result<Self, Self::Error> {
         let piece = Piece::try_from(value)?;
-        Ok(BitPiece::new(piece, Color::White, false))
+        let color = if value.is_ascii_uppercase() {
+            Color::White
+        } else {
+            Color::Black
+        };
+        Ok(BitPiece::new(piece, color, false))
     }
 }
 
