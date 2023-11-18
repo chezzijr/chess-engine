@@ -1,9 +1,8 @@
 use crate::{
-    movegen::{Legal, Raw, RawMove},
-    BitPiece, BoardError, Color, ColorError, Piece, Square,
+    movegen::{Legal, RawMove},
+    BitPiece, BoardError, Color, Piece, Square,
 };
 use std::{
-    error::Error,
     fmt,
     ops::{Index, IndexMut},
 };
@@ -136,7 +135,7 @@ impl Board {
                     },
                 };
 
-                let mut halfmove_clock = match halfmove_clock.parse::<u8>() {
+                let halfmove_clock = match halfmove_clock.parse::<u8>() {
                     Ok(halfmove_clock) => halfmove_clock,
                     Err(e) => return Err(BoardError::InvalidFEN(e.to_string())),
                 };
@@ -145,7 +144,7 @@ impl Board {
                     return Err(BoardError::InvalidFEN(format!("{} is not a valid halfmove clock", halfmove_clock)));
                 }
 
-                let mut fullmove_number = match fullmove_number.parse::<u16>() {
+                let fullmove_number = match fullmove_number.parse::<u16>() {
                     Ok(fullmove_number) => fullmove_number,
                     Err(e) => return Err(BoardError::InvalidFEN(e.to_string())),
                 };
