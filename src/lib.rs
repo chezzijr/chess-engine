@@ -38,8 +38,8 @@ mod tests {
         board1.make_move("Nf3".to_owned()).unwrap();
         assert_eq!(board1.fen_notation(), "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2");
 
-        let mut board = Board::from_fen("2p5/1P6/8/8/8/8/5k2/K7 w KQkq - 0 1".into()).unwrap();
-        board.make_move("xc8=Q".into()).unwrap();
-        assert_eq!(board.fen_notation(), "2Q5/8/8/8/8/8/5k2/K7 b KQkq - 0 1");
+        let mut board2 = Board::from_fen("2p5/1P6/8/8/8/8/5k2/K7 w KQkq - 0 1".into()).unwrap();
+        board2.make_move("xc8=Q".into()).unwrap();
+        assert_eq!(board2.fen_notation(), "2Q5/8/8/8/8/8/5k2/K7 b KQkq - 0 1");
     }
 }

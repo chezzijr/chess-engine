@@ -4,7 +4,7 @@ use super::{Walk, DD, HD, VD};
 use crate::{Board, Square, CastleMove, BitPiece};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct RawMoveInfo {
+pub(crate) struct RawMoveInfo {
     pub piece: BitPiece,
     pub from: Square,
     pub to: Square,
@@ -21,13 +21,13 @@ pub struct RawMoveInfo {
 
 // information about a captures piece
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct CaptureInfo {
+pub(crate) struct CaptureInfo {
     pub piece: BitPiece,
     pub square: Square
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub enum RawMove {
+pub(crate) enum RawMove {
     Single(RawMoveInfo),
     // castle move contains 2 moves, the king and the rook
     Castle(RawMoveInfo, RawMoveInfo)
@@ -49,10 +49,10 @@ impl fmt::Display for RawMove {
 // 1. Generate all possible raw moves
 // 2. Filter out illegal moves (e.g. moves that leave the king in check)
 // To filter, we execute raw move on temporary board and check if king is in check
-pub struct Raw;
+pub(crate) struct Raw;
 
 impl Raw {
-    pub fn gen_all_raw_moves(board: &Board) -> Vec<RawMove> {
+    pub(crate) fn gen_all_raw_moves(board: &Board) -> Vec<RawMove> {
         let mut moves = vec![];
         let gen_fns = [
             Self::gen_pawn_raw_moves,
@@ -72,7 +72,7 @@ impl Raw {
         moves
     }
 
-    pub fn gen_pawn_raw_moves(board: &Board, square: Square) -> Vec<RawMove> {
+    pub(crate) fn gen_pawn_raw_moves(board: &Board, square: Square) -> Vec<RawMove> {
         let mut moves = vec![];
         let piece = board[square];
         if piece.is_blank() {
@@ -166,7 +166,7 @@ impl Raw {
         moves
     }
 
-    pub fn gen_rook_raw_moves(board: &Board, square: Square) -> Vec<RawMove> {
+    pub(crate) fn gen_rook_raw_moves(board: &Board, square: Square) -> Vec<RawMove> {
         let mut moves = vec![];
         let piece = board[square];
         if piece.is_blank() {
@@ -226,7 +226,7 @@ impl Raw {
         moves
     }
 
-    pub fn gen_bishop_raw_moves(board: &Board, square: Square) -> Vec<RawMove> {
+    pub(crate) fn gen_bishop_raw_moves(board: &Board, square: Square) -> Vec<RawMove> {
         let mut moves = vec![];
         let piece = board[square];
         if piece.is_blank() {
@@ -260,7 +260,7 @@ impl Raw {
         moves
     }
 
-    pub fn gen_queen_raw_moves(board: &Board, square: Square) -> Vec<RawMove> {
+    pub(crate) fn gen_queen_raw_moves(board: &Board, square: Square) -> Vec<RawMove> {
         let mut moves = vec![];
         let piece = board[square];
         if piece.is_blank() || !piece.is_queen() {
@@ -271,7 +271,7 @@ impl Raw {
         moves
     }
 
-    pub fn gen_king_raw_moves(board: &Board, square: Square) -> Vec<RawMove> {
+    pub(crate) fn gen_king_raw_moves(board: &Board, square: Square) -> Vec<RawMove> {
         let mut moves = vec![];
         let piece = board[square];
         if piece.is_blank() {
@@ -432,7 +432,7 @@ impl Raw {
         moves
     }
 
-    pub fn gen_knight_raw_moves(board: &Board, square: Square) -> Vec<RawMove> {
+    pub(crate) fn gen_knight_raw_moves(board: &Board, square: Square) -> Vec<RawMove> {
         let mut moves = vec![];
         let piece = board[square];
         if piece.is_blank() {

@@ -1,6 +1,6 @@
 use crate::{
     movegen::{Legal, RawMove},
-    BitPiece, BoardError, Color, Piece, Square, MoveInfo, CastleMove,
+    BitPiece, BoardError, CastleMove, Color, MoveInfo, Piece, Square,
 };
 use regex::Regex;
 use std::{
@@ -191,7 +191,7 @@ impl Board {
 
     // Should not be used outside library
     // use execute_move instead
-    pub fn force_execute_raw_move(&mut self, mv: RawMove) {
+    pub(crate) fn force_execute_raw_move(&mut self, mv: RawMove) {
         match mv {
             RawMove::Single(mut info) => {
                 if let Some(capture) = info.capture {
@@ -215,7 +215,7 @@ impl Board {
         }
     }
 
-    pub fn execute_move(&mut self, mv: &MoveInfo, rmv: &RawMove) {
+    pub(crate) fn execute_move(&mut self, mv: &MoveInfo, rmv: &RawMove) {
         match rmv {
             RawMove::Single(mut info) => {
                 if let Some(capture) = info.capture {
@@ -243,7 +243,7 @@ impl Board {
         }
     }
 
-    pub fn is_being_checked(&self, color: Color, raw_moves: &Vec<RawMove>) -> bool {
+    pub(crate) fn is_being_checked(&self, color: Color, raw_moves: &Vec<RawMove>) -> bool {
         // current turn meaning that opponent is not checked or checkmated
         // or previous status of the board is not check or checkmated
         // in other way, the fact that the board can advance to current turn
@@ -275,11 +275,11 @@ impl Board {
         false
     }
 
-    pub fn legal_moves(&self) -> Vec<RawMove> {
+    pub(crate) fn legal_moves(&self) -> Vec<RawMove> {
         Legal::gen_all_legal_moves(self)
     }
 
-    pub fn parse_move(&self, m: String) -> Result<RawMove, BoardError> {
+    pub(crate) fn parse_move(&self, m: String) -> Result<RawMove, BoardError> {
         // this is used to parse string move to RawMove to execute move
         // pawn abbreviation may be specified or not, eg. e4 or Pe4
         // normal case: {piece}{to} eg. Nf3
@@ -290,8 +290,10 @@ impl Board {
         // conclude: {file or rank or none}{piece}{x or none}{to}{promotion or none} if noncastling
         // else O-O or O-O-O
         // {to} is a must-have field
-        let mut legal_moves = self.legal_moves().into_iter().filter(|&mov| {
-            match mov {
+        let mut legal_moves = self
+            .legal_moves()
+            .into_iter()
+            .filter(|&mov| match mov {
                 RawMove::Single(info) => {
                     if info.piece.get_color() == self.turn {
                         true
@@ -305,9 +307,9 @@ impl Board {
                     } else {
                         false
                     }
-                },
-            }
-        }).collect::<Vec<RawMove>>();
+                }
+            })
+            .collect::<Vec<RawMove>>();
 
         if m == "O-O" || m == "O-O-O" {
             let legal_castle = legal_moves.iter().find(|&mov| match mov {
@@ -355,38 +357,36 @@ impl Board {
                     } else {
                         info.from.file() == c
                     }
-                },
+                }
                 _ => false,
             });
         }
 
-        if let Some(piece) = piece {
-            let chr = piece.as_str().chars().next().unwrap();
-            if chr.is_uppercase() && self.turn == Color::Black {
-                return Err(BoardError::IllegalMove(m));
-            }
-            if chr.is_lowercase() && self.turn == Color::White {
-                return Err(BoardError::IllegalMove(m));
-            }
-            legal_moves.retain(|&mov| match mov {
-                RawMove::Single(info) => {
-                    let p = piece.as_str();
-                    let p = if p.len() == 0 { 
-                        'P'
-                    } else {
-                        p.chars().next().unwrap()
-                    };
-                    info.piece.get_piece() == Piece::try_from(p).unwrap()
-                },
-                _ => false,
-            });
+        let default_pawn = if self.turn == Color::White { "P" } else { "p" };
+        let piece = piece.map_or(default_pawn, |m| m.as_str());
+        let chr = piece.chars().next().unwrap();
+        if chr.is_uppercase() && self.turn == Color::Black {
+            return Err(BoardError::IllegalMove(m));
         }
+        if chr.is_lowercase() && self.turn == Color::White {
+            return Err(BoardError::IllegalMove(m));
+        }
+        legal_moves.retain(|&mov| match mov {
+            RawMove::Single(info) => {
+                let p = piece;
+                let p = if p.len() == 0 {
+                    'P'
+                } else {
+                    p.chars().next().unwrap()
+                };
+                info.piece.get_piece() == Piece::try_from(p).unwrap()
+            }
+            _ => false,
+        });
 
         if let Some(_) = capture {
             legal_moves.retain(|&mov| match mov {
-                RawMove::Single(info) => {
-                    info.capture.is_some()
-                },
+                RawMove::Single(info) => info.capture.is_some(),
                 _ => false,
             });
         }
@@ -400,9 +400,7 @@ impl Board {
                 return Err(BoardError::IllegalMove(m));
             }
             legal_moves.retain(|&mov| match mov {
-                RawMove::Single(info) => {
-                    info.promotion
-                },
+                RawMove::Single(info) => info.promotion,
                 _ => false,
             });
         };
@@ -441,10 +439,10 @@ impl Board {
                     match self.turn {
                         Color::White => {
                             self.castling &= 0b1100;
-                        },
+                        }
                         Color::Black => {
                             self.castling &= 0b0011;
-                        },
+                        }
                     };
                 } else if info.piece.is_rook() && !info.piece.has_moved() {
                     match self.turn {
@@ -454,14 +452,14 @@ impl Board {
                             } else if info.from.file() == 'a' {
                                 self.castling &= 0b1110;
                             }
-                        },
+                        }
                         Color::Black => {
                             if info.from.file() == 'h' {
                                 self.castling &= 0b0111;
                             } else if info.from.file() == 'a' {
                                 self.castling &= 0b1101;
                             }
-                        },
+                        }
                     };
                 }
 
@@ -487,17 +485,17 @@ impl Board {
                     check: false,
                     checkmate: false,
                 }
-            },
+            }
             RawMove::Castle(info1, info2) => {
                 // because we update turn in the beginning of this function
                 // to get the correct turn, we need to get the opposite of current turn
                 match self.turn {
                     Color::White => {
                         self.castling &= 0b1100;
-                    },
+                    }
                     Color::Black => {
                         self.castling &= 0b0011;
-                    },
+                    }
                 };
                 self.halfmove_clock += 1;
                 MoveInfo {
@@ -524,22 +522,26 @@ impl Board {
         let next_legal_moves = self.legal_moves();
 
         if self.is_being_checked(self.turn, &next_legal_moves) {
-            if next_legal_moves.iter().find(|&mov| match mov {
-                RawMove::Single(info) => {
-                    if info.piece.get_color() == self.turn {
-                        true
-                    } else {
-                        false
+            if next_legal_moves
+                .iter()
+                .find(|&mov| match mov {
+                    RawMove::Single(info) => {
+                        if info.piece.get_color() == self.turn {
+                            true
+                        } else {
+                            false
+                        }
                     }
-                }
-                RawMove::Castle(info1, _) => {
-                    if info1.piece.get_color() == self.turn {
-                        true
-                    } else {
-                        false
+                    RawMove::Castle(info1, _) => {
+                        if info1.piece.get_color() == self.turn {
+                            true
+                        } else {
+                            false
+                        }
                     }
-                },
-            }).is_some() {
+                })
+                .is_some()
+            {
                 self.status = BoardStatus::Check(self.turn);
                 move_info.check = true;
             } else {

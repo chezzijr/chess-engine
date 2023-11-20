@@ -11,7 +11,7 @@ use std::fmt;
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum BitPieceFlags {
-    FirstMove = 1,
+    FirstMove = 1 << 4,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -52,7 +52,7 @@ impl BitPiece {
     }
 
     pub fn set_moved(&mut self) {
-        self.0 |= 0b0001_0000;
+        self.0 |= BitPieceFlags::FirstMove as u8;
     }
 
     // Helper functions
