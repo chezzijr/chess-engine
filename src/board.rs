@@ -1,6 +1,6 @@
 use crate::{
     movegen::{Legal, RawMove},
-    BitPiece, BoardError, Color, Piece, Square, MoveInfo,
+    BitPiece, BoardError, Color, Piece, Square, MoveInfo, CastleMove,
 };
 use regex::Regex;
 use std::{
@@ -215,6 +215,34 @@ impl Board {
         }
     }
 
+    pub fn execute_move(&mut self, mv: &MoveInfo, rmv: &RawMove) {
+        match rmv {
+            RawMove::Single(mut info) => {
+                if let Some(capture) = info.capture {
+                    self[capture.square] = BitPiece::new_blank();
+                }
+                self[info.from] = BitPiece::new_blank();
+                if let Some(promotion) = mv.promotion {
+                    self[info.to] = promotion;
+                } else {
+                    info.piece.set_moved();
+                    self[info.to] = info.piece;
+                }
+                if let Some(en_passant_square) = info.en_passant_square {
+                    self.en_passant = Some(en_passant_square);
+                }
+            }
+            RawMove::Castle(mut info1, mut info2) => {
+                self[info1.from] = BitPiece::new_blank();
+                info1.piece.set_moved();
+                self[info1.to] = info1.piece;
+                self[info2.from] = BitPiece::new_blank();
+                info2.piece.set_moved();
+                self[info2.to] = info2.piece;
+            }
+        }
+    }
+
     pub fn is_being_checked(&self, color: Color, raw_moves: &Vec<RawMove>) -> bool {
         // current turn meaning that opponent is not checked or checkmated
         // or previous status of the board is not check or checkmated
@@ -379,6 +407,9 @@ impl Board {
             });
         };
 
+        // if there is 1 move match the algebraic notation, return it
+        // else if more than 1 => ambiguous move
+        // else if 0 => illegal move
         if legal_moves.len() == 1 {
             Ok(legal_moves[0].clone())
         } else if legal_moves.len() > 1 {
@@ -391,8 +422,8 @@ impl Board {
     pub fn make_move(&mut self, m: String) -> Result<(), BoardError> {
         let mov = self.parse_move(m.clone())?;
 
-        let mov = match mov {
-            RawMove::Single(mut info) => {
+        let mut move_info = match mov {
+            RawMove::Single(info) => {
                 // if pawn move or capture, reset halfmove clock
                 if info.piece.is_pawn() || info.capture.is_some() {
                     self.halfmove_clock = 0;
@@ -434,13 +465,28 @@ impl Board {
                     };
                 }
 
-                // protmotion
-                if info.promotion {
-                    let to_piece = m.chars().last().unwrap();
-                    let to_piece = Piece::try_from(to_piece).unwrap();
-                    info.piece = BitPiece::new(to_piece, info.piece.get_color(), false);
+                MoveInfo {
+                    piece: info.piece,
+                    from: info.from,
+                    to: info.to,
+                    capture: if let Some(capture) = info.capture {
+                        Some(capture.piece)
+                    } else {
+                        None
+                    },
+                    promotion: if info.promotion {
+                        let chr = m.chars().last().unwrap();
+                        let p = Piece::try_from(chr).unwrap();
+                        Some(BitPiece::new(p, self.turn, true))
+                    } else {
+                        None
+                    },
+                    castle: None,
+                    en_passant: info.en_passant,
+                    en_passant_square: info.en_passant_square,
+                    check: false,
+                    checkmate: false,
                 }
-                RawMove::Single(info)
             },
             RawMove::Castle(info1, info2) => {
                 // because we update turn in the beginning of this function
@@ -454,11 +500,26 @@ impl Board {
                     },
                 };
                 self.halfmove_clock += 1;
-                RawMove::Castle(info1, info2)
+                MoveInfo {
+                    piece: info1.piece,
+                    from: info1.from,
+                    to: info1.to,
+                    capture: None,
+                    promotion: None,
+                    castle: if info2.from.file() == 'h' {
+                        Some(CastleMove::KingSide)
+                    } else {
+                        Some(CastleMove::QueenSide)
+                    },
+                    en_passant: false,
+                    en_passant_square: None,
+                    check: false,
+                    checkmate: false,
+                }
             }
         };
 
-        self.force_execute_raw_move(mov);
+        self.execute_move(&move_info, &mov);
         self.turn = self.turn.opposite();
         let next_legal_moves = self.legal_moves();
 
@@ -480,15 +541,18 @@ impl Board {
                 },
             }).is_some() {
                 self.status = BoardStatus::Check(self.turn);
+                move_info.check = true;
             } else {
                 self.status = BoardStatus::Checkmate(self.turn);
+                move_info.checkmate = true;
             }
         }
-
 
         if self.turn == Color::White {
             self.fullmove_number += 1;
         }
+
+        self.history.push(move_info);
 
         Ok(())
     }
