@@ -1,7 +1,7 @@
 use std::fmt;
 
 use super::{Walk, DD, HD, VD};
-use crate::{Board, Square, CastleMove, BitPiece};
+use crate::{Board, Square, CastleMove, BitPiece, MoveInfo};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct RawMoveInfo {
@@ -30,7 +30,7 @@ pub struct CaptureInfo {
 pub enum RawMove {
     Single(RawMoveInfo),
     // castle move contains 2 moves, the king and the rook
-    Double(RawMoveInfo, RawMoveInfo)
+    Castle(RawMoveInfo, RawMoveInfo)
 }
 
 impl fmt::Display for RawMove {
@@ -39,7 +39,7 @@ impl fmt::Display for RawMove {
             RawMove::Single(info) => {
                 write!(f, "{} from {} to {}", info.piece, info.from, info.to)
             },
-            RawMove::Double(info1, info2) => {
+            RawMove::Castle(info1, _) => {
                 write!(f, "{} from {} to {}", info1.piece, info1.from, info1.to)
             }
         }
@@ -374,7 +374,7 @@ impl Raw {
                 }
                 if all_empty {
                     moves.push(
-                        RawMove::Double(RawMoveInfo {
+                        RawMove::Castle(RawMoveInfo {
                         piece,
                         from: square,
                         to: Square::try_from(format!("{}{}", 'c', square.rank())).unwrap(),
@@ -407,7 +407,7 @@ impl Raw {
                 }
                 if all_empty {
                     moves.push(
-                        RawMove::Double(RawMoveInfo {
+                        RawMove::Castle(RawMoveInfo {
                         piece,
                         from: square,
                         to: Square::try_from(format!("{}{}", 'g', square.rank())).unwrap(),

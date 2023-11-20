@@ -1,7 +1,8 @@
 use crate::{
     movegen::{Legal, RawMove},
-    BitPiece, BoardError, Color, Piece, Square,
+    BitPiece, BoardError, Color, Piece, Square, MoveInfo,
 };
+use regex::Regex;
 use std::{
     fmt,
     ops::{Index, IndexMut},
@@ -19,7 +20,7 @@ pub enum BoardStatus {
     Ongoing,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Board {
     board: BitBoard,
     pub turn: Color,
@@ -33,6 +34,8 @@ pub struct Board {
     pub en_passant: Option<Square>,
     pub halfmove_clock: u8,
     pub fullmove_number: u16,
+
+    pub history: Vec<MoveInfo>,
 }
 
 impl Index<Square> for Board {
@@ -76,6 +79,8 @@ impl Default for Board {
             en_passant: None,
             halfmove_clock: 0,
             fullmove_number: 1,
+
+            history: Vec::new(),
         }
     }
 }
@@ -107,7 +112,12 @@ impl Board {
                 let color = match turn {
                     "w" => Color::White,
                     "b" => Color::Black,
-                    _ => return Err(BoardError::InvalidFEN(format!("{} is not a valid turn", turn))),
+                    _ => {
+                        return Err(BoardError::InvalidFEN(format!(
+                            "{} is not a valid turn",
+                            turn
+                        )))
+                    }
                 };
 
                 let castling = match castling {
@@ -120,7 +130,12 @@ impl Board {
                                 'Q' => castle |= 0b0100,
                                 'k' => castle |= 0b0010,
                                 'q' => castle |= 0b0001,
-                                _ => return Err(BoardError::InvalidFEN(format!("{} is not a valid castling", castling))),
+                                _ => {
+                                    return Err(BoardError::InvalidFEN(format!(
+                                        "{} is not a valid castling",
+                                        castling
+                                    )))
+                                }
                             }
                         }
                         castle
@@ -141,7 +156,10 @@ impl Board {
                 };
 
                 if halfmove_clock > 100 {
-                    return Err(BoardError::InvalidFEN(format!("{} is not a valid halfmove clock", halfmove_clock)));
+                    return Err(BoardError::InvalidFEN(format!(
+                        "{} is not a valid halfmove clock",
+                        halfmove_clock
+                    )));
                 }
 
                 let fullmove_number = match fullmove_number.parse::<u16>() {
@@ -150,7 +168,10 @@ impl Board {
                 };
 
                 if fullmove_number == 0 {
-                    return Err(BoardError::InvalidFEN(format!("{} is not a valid fullmove number", fullmove_number)));
+                    return Err(BoardError::InvalidFEN(format!(
+                        "{} is not a valid fullmove number",
+                        fullmove_number
+                    )));
                 }
 
                 Ok(Self {
@@ -161,6 +182,7 @@ impl Board {
                     en_passant,
                     halfmove_clock,
                     fullmove_number,
+                    history: Vec::new(),
                 })
             }
             _ => return Err(BoardError::InvalidFEN(fen)),
@@ -171,20 +193,23 @@ impl Board {
     // use execute_move instead
     pub fn force_execute_raw_move(&mut self, mv: RawMove) {
         match mv {
-            RawMove::Single(info) => {
-                self[info.from] = BitPiece::new_blank();
-                self[info.to] = info.piece;
+            RawMove::Single(mut info) => {
                 if let Some(capture) = info.capture {
                     self[capture.square] = BitPiece::new_blank();
                 }
+                self[info.from] = BitPiece::new_blank();
+                info.piece.set_moved();
+                self[info.to] = info.piece;
                 if let Some(en_passant_square) = info.en_passant_square {
                     self.en_passant = Some(en_passant_square);
                 }
             }
-            RawMove::Double(info1, info2) => {
+            RawMove::Castle(mut info1, mut info2) => {
                 self[info1.from] = BitPiece::new_blank();
+                info1.piece.set_moved();
                 self[info1.to] = info1.piece;
                 self[info2.from] = BitPiece::new_blank();
+                info2.piece.set_moved();
                 self[info2.to] = info2.piece;
             }
         }
@@ -224,6 +249,248 @@ impl Board {
 
     pub fn legal_moves(&self) -> Vec<RawMove> {
         Legal::gen_all_legal_moves(self)
+    }
+
+    pub fn parse_move(&self, m: String) -> Result<RawMove, BoardError> {
+        // this is used to parse string move to RawMove to execute move
+        // pawn abbreviation may be specified or not, eg. e4 or Pe4
+        // normal case: {piece}{to} eg. Nf3
+        // capture: {piece}x{to} eg. Nxe4
+        // promotion: {piece}{to}={piece} eg. e8=Q
+        // en passant: same as capture but with en passant square eg. exd6
+        // castle: O-O or O-O-O
+        // conclude: {file or rank or none}{piece}{x or none}{to}{promotion or none} if noncastling
+        // else O-O or O-O-O
+        // {to} is a must-have field
+        let mut legal_moves = self.legal_moves().into_iter().filter(|&mov| {
+            match mov {
+                RawMove::Single(info) => {
+                    if info.piece.get_color() == self.turn {
+                        true
+                    } else {
+                        false
+                    }
+                }
+                RawMove::Castle(info1, _) => {
+                    if info1.piece.get_color() == self.turn {
+                        true
+                    } else {
+                        false
+                    }
+                },
+            }
+        }).collect::<Vec<RawMove>>();
+
+        if m == "O-O" || m == "O-O-O" {
+            let legal_castle = legal_moves.iter().find(|&mov| match mov {
+                RawMove::Castle(_, info2) => {
+                    if m == "O-O" {
+                        info2.from.file() == 'h'
+                    } else {
+                        info2.from.file() == 'a'
+                    }
+                }
+                _ => false,
+            });
+            if let Some(m) = legal_castle {
+                return Ok(m.clone());
+            } else {
+                return Err(BoardError::IllegalMove(m));
+            }
+        }
+
+        const PATTERN: &'static str = r"^(?<from>([a-h]|[1-8]))?(?<piece>[kqbnrpKQBNRP])?(?<capture>x)?(?<to>[a-h][1-8])(?<promote>=[qnbrQNBR])?$";
+        let re = Regex::new(PATTERN).unwrap();
+        let Some(cap) = re.captures(&m) else {
+            return Err(BoardError::InvalidPattern(m));
+        };
+
+        let from = cap.name("from");
+        let piece = cap.name("piece");
+        let capture = cap.name("capture");
+        let to = cap.name("to");
+        let promote = cap.name("promote");
+
+        let to_square = Square::try_from(to.unwrap().as_str().to_owned()).unwrap();
+        legal_moves.retain(|&mov| match mov {
+            RawMove::Single(info) => info.to == to_square,
+            _ => false,
+        });
+
+        if let Some(from) = from {
+            legal_moves.retain(|&mov| match mov {
+                RawMove::Single(info) => {
+                    // because of the match, from is guaranteed to be a file or rank
+                    let c = from.as_str().chars().next().unwrap();
+                    if c.is_digit(10) {
+                        info.from.rank() == c.to_digit(10).unwrap() as u8
+                    } else {
+                        info.from.file() == c
+                    }
+                },
+                _ => false,
+            });
+        }
+
+        if let Some(piece) = piece {
+            let chr = piece.as_str().chars().next().unwrap();
+            if chr.is_uppercase() && self.turn == Color::Black {
+                return Err(BoardError::IllegalMove(m));
+            }
+            if chr.is_lowercase() && self.turn == Color::White {
+                return Err(BoardError::IllegalMove(m));
+            }
+            legal_moves.retain(|&mov| match mov {
+                RawMove::Single(info) => {
+                    let p = piece.as_str();
+                    let p = if p.len() == 0 { 
+                        'P'
+                    } else {
+                        p.chars().next().unwrap()
+                    };
+                    info.piece.get_piece() == Piece::try_from(p).unwrap()
+                },
+                _ => false,
+            });
+        }
+
+        if let Some(_) = capture {
+            legal_moves.retain(|&mov| match mov {
+                RawMove::Single(info) => {
+                    info.capture.is_some()
+                },
+                _ => false,
+            });
+        }
+
+        if let Some(promote) = promote {
+            let chr = promote.as_str().chars().nth(1).unwrap();
+            if chr.is_uppercase() && self.turn == Color::Black {
+                return Err(BoardError::IllegalMove(m));
+            }
+            if chr.is_lowercase() && self.turn == Color::White {
+                return Err(BoardError::IllegalMove(m));
+            }
+            legal_moves.retain(|&mov| match mov {
+                RawMove::Single(info) => {
+                    info.promotion
+                },
+                _ => false,
+            });
+        };
+
+        if legal_moves.len() == 1 {
+            Ok(legal_moves[0].clone())
+        } else if legal_moves.len() > 1 {
+            Err(BoardError::AmbiguousMove(m))
+        } else {
+            Err(BoardError::IllegalMove(m))
+        }
+    }
+
+    pub fn make_move(&mut self, m: String) -> Result<(), BoardError> {
+        let mov = self.parse_move(m.clone())?;
+
+        let mov = match mov {
+            RawMove::Single(mut info) => {
+                // if pawn move or capture, reset halfmove clock
+                if info.piece.is_pawn() || info.capture.is_some() {
+                    self.halfmove_clock = 0;
+                } else {
+                    self.halfmove_clock += 1;
+                };
+                // update en passant
+                if let Some(en_passant_square) = info.en_passant_square {
+                    self.en_passant = Some(en_passant_square);
+                } else {
+                    self.en_passant = None;
+                };
+                // castling
+                if info.piece.is_king() && !info.piece.has_moved() {
+                    match self.turn {
+                        Color::White => {
+                            self.castling &= 0b1100;
+                        },
+                        Color::Black => {
+                            self.castling &= 0b0011;
+                        },
+                    };
+                } else if info.piece.is_rook() && !info.piece.has_moved() {
+                    match self.turn {
+                        Color::White => {
+                            if info.from.file() == 'h' {
+                                self.castling &= 0b1011;
+                            } else if info.from.file() == 'a' {
+                                self.castling &= 0b1110;
+                            }
+                        },
+                        Color::Black => {
+                            if info.from.file() == 'h' {
+                                self.castling &= 0b0111;
+                            } else if info.from.file() == 'a' {
+                                self.castling &= 0b1101;
+                            }
+                        },
+                    };
+                }
+
+                // protmotion
+                if info.promotion {
+                    let to_piece = m.chars().last().unwrap();
+                    let to_piece = Piece::try_from(to_piece).unwrap();
+                    info.piece = BitPiece::new(to_piece, info.piece.get_color(), false);
+                }
+                RawMove::Single(info)
+            },
+            RawMove::Castle(info1, info2) => {
+                // because we update turn in the beginning of this function
+                // to get the correct turn, we need to get the opposite of current turn
+                match self.turn {
+                    Color::White => {
+                        self.castling &= 0b1100;
+                    },
+                    Color::Black => {
+                        self.castling &= 0b0011;
+                    },
+                };
+                self.halfmove_clock += 1;
+                RawMove::Castle(info1, info2)
+            }
+        };
+
+        self.force_execute_raw_move(mov);
+        self.turn = self.turn.opposite();
+        let next_legal_moves = self.legal_moves();
+
+        if self.is_being_checked(self.turn, &next_legal_moves) {
+            if next_legal_moves.iter().find(|&mov| match mov {
+                RawMove::Single(info) => {
+                    if info.piece.get_color() == self.turn {
+                        true
+                    } else {
+                        false
+                    }
+                }
+                RawMove::Castle(info1, _) => {
+                    if info1.piece.get_color() == self.turn {
+                        true
+                    } else {
+                        false
+                    }
+                },
+            }).is_some() {
+                self.status = BoardStatus::Check(self.turn);
+            } else {
+                self.status = BoardStatus::Checkmate(self.turn);
+            }
+        }
+
+
+        if self.turn == Color::White {
+            self.fullmove_number += 1;
+        }
+
+        Ok(())
     }
 
     pub fn fen_notation(&self) -> String {

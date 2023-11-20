@@ -11,6 +11,15 @@ pub enum Color {
     Black = 1,
 }
 
+impl Color {
+    pub fn opposite(&self) -> Self {
+        match self {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+        }
+    }
+}
+
 impl TryFrom <u8> for Color {
     type Error = ColorError;
 

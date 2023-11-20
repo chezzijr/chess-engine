@@ -51,6 +51,10 @@ impl BitPiece {
         self.0 & 0b0001_0000 != 0
     }
 
+    pub fn set_moved(&mut self) {
+        self.0 |= 0b0001_0000;
+    }
+
     // Helper functions
     pub fn is_pawn(&self) -> bool {
         self.get_piece() == Piece::Pawn

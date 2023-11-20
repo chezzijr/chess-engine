@@ -30,8 +30,12 @@ pub enum SquareError {
 
 #[derive(Error, Debug)]
 pub enum BoardError {
+    #[error("Ambiguous move: {0}")]
+    AmbiguousMove(String),
     #[error("Illegal move: {0}")]
     IllegalMove(String),
     #[error("Invalid FEN Notation: {0}")]
     InvalidFEN(String),
+    #[error("Invalid pattern: {0}")]
+    InvalidPattern(String),
 }
