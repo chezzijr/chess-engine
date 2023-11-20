@@ -1,7 +1,7 @@
 use std::fmt;
 
 use super::{Walk, DD, HD, VD};
-use crate::{Board, Square, CastleMove, BitPiece, MoveInfo};
+use crate::{Board, Square, CastleMove, BitPiece};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct RawMoveInfo {
