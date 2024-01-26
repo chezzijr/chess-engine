@@ -522,6 +522,8 @@ impl Board {
         let next_legal_moves = self.legal_moves();
 
         if self.is_being_checked(self.turn, &next_legal_moves) {
+            // if being checked and no next legal moves => checkmate
+            // else it is just check
             if next_legal_moves
                 .iter()
                 .find(|&mov| match mov {
@@ -547,6 +549,29 @@ impl Board {
             } else {
                 self.status = BoardStatus::Checkmate(self.turn);
                 move_info.checkmate = true;
+            }
+        } else {
+            // if not being checked and no next legal moves => stalemate
+            // else it is just normal move
+            if next_legal_moves.iter().find(|&mov| match mov {
+                RawMove::Single(info) => {
+                    if info.piece.get_color() == self.turn {
+                        true
+                    } else {
+                        false
+                    }
+                }
+                RawMove::Castle(info1, _) => {
+                    if info1.piece.get_color() == self.turn {
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }).is_some() {
+                self.status = BoardStatus::Ongoing;
+            } else {
+                self.status = BoardStatus::Stalemate;
             }
         }
 
